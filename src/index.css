@@ -1,0 +1,124 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    margin: 0;
+    background: #010828;
+    color: #eff4ff;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+      "Courier New", monospace;
+  }
+
+  #root {
+    min-height: 100svh;
+  }
+}
+
+@layer components {
+  .liquid-glass {
+    background: rgba(255, 255, 255, 0.01);
+    background-blend-mode: luminosity;
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    border: none;
+    box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.1);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .liquid-glass::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1.4px;
+    background: linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.45) 0%,
+      rgba(255, 255, 255, 0.15) 20%,
+      rgba(255, 255, 255, 0) 40%,
+      rgba(255, 255, 255, 0) 60%,
+      rgba(255, 255, 255, 0.15) 80%,
+      rgba(255, 255, 255, 0.45) 100%
+    );
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask-composite: exclude;
+    pointer-events: none;
+    z-index: 0;
+  }
+}
+
+.story-frame {
+  border: 2px solid rgba(239, 244, 255, 0.92);
+}
+
+@keyframes hero-rise {
+  from {
+    opacity: 0;
+    transform: translateY(42px);
+    filter: blur(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+
+@keyframes hero-script {
+  0% {
+    opacity: 0;
+    transform: translateY(16px) rotate(-14deg) scale(0.82);
+    filter: blur(8px);
+  }
+  100% {
+    opacity: 0.9;
+    transform: translateY(0) rotate(-1deg) scale(1);
+    filter: blur(0);
+  }
+}
+
+.hero-line {
+  display: block;
+  animation: hero-rise 0.95s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.hero-line-late {
+  animation-delay: 0.18s;
+}
+
+.hero-script {
+  animation: hero-script 0.9s cubic-bezier(0.16, 1, 0.3, 1) 0.46s both;
+}
+
+@keyframes toast-rise {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.toast-rise {
+  animation: toast-rise 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-line,
+  .hero-line-late,
+  .hero-script,
+  .toast-rise {
+    animation: none;
+  }
+}
