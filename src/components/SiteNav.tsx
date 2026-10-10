@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
-import { CONTRACT_ADDRESS } from "../data/reefy";
-import { connectWallet, shortAddress, type WalletKind } from "../wallet";
+import { getPhantomSolana, shortAddress } from "../wallet";
 
 export type View = "home" | "suits" | "launch" | "board";
 
@@ -40,28 +39,40 @@ export function SiteHeader({ current, hash, onNavigate, wallet, onConnect, onDis
 }
 
 function ContractCopy() {
-  const [copied, setCopied] = useState(false);
+  const [check, setCheck] = useState(false);
 
   async function copy() {
-    try {
-      await navigator.clipboard.writeText(CONTRACT_ADDRESS);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1400);
-    } catch {
-      setCopied(false);
+    const value = document.getElementById("reefy-ca")?.textContent?.trim() ?? "";
+    if (value) {
+      try {
+        await navigator.clipboard.writeText(value);
+      } catch {
+        return;
+      }
     }
+    setCheck(true);
+    window.setTimeout(() => setCheck(false), 1200);
   }
 
   return (
-    <button
-      type="button"
-      onClick={() => void copy()}
-      className="liquid-glass flex items-center gap-2 rounded-[20px] px-3 py-3 font-mono text-[11px] uppercase text-cream transition hover:bg-white/10 sm:px-4 sm:text-[12px]"
-    >
-      <span className="text-neon">CA</span>
-      <span>{shortAddress(CONTRACT_ADDRESS)}</span>
-      <span className="text-cream/70">{copied ? "Copied" : "Copy"}</span>
-    </button>
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => void copy()}
+        className="liquid-glass flex items-center gap-2 rounded-[20px] px-3 py-3 font-mono text-[11px] uppercase text-cream transition hover:bg-white/10 sm:px-4 sm:text-[12px]"
+      >
+        <span className="text-neon">CA</span>
+        <span id="reefy-ca" className="inline-block min-w-[4.5rem]" />
+        <span className="text-cream/70">Copy</span>
+      </button>
+      {check ? (
+        <span className="ca-check pointer-events-none absolute left-1/2 top-full z-50 mt-2 flex h-5 w-5 items-center justify-center rounded-full bg-neon text-space">
+          <svg viewBox="0 0 12 12" className="h-3 w-3" aria-hidden="true">
+            <path d="M2 6.2 4.6 9 10 3" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </span>
+      ) : null}
+    </div>
   );
 }
 
@@ -76,7 +87,7 @@ function ConnectButton({
 }) {
   const [open, setOpen] = useState(false);
   const [error, setError] = useState("");
-  const [pending, setPending] = useState<WalletKind | null>(null);
+  const [pending, setPending] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -87,19 +98,49 @@ function ConnectButton({
     return () => window.removeEventListener("keydown", onKey);
   }, [open]);
 
-  async function choose(kind: WalletKind) {
-    setError("");
-    setPending(kind);
-    try {
-      const address = await connectWallet(kind);
-      onConnect(address);
-      setOpen(false);
-    } catch (caught) {
-      const message = caught instanceof Error ? caught.message : "Could not connect.";
-      if (!/user rejected|user denied/i.test(message)) setError(message);
-    } finally {
-      setPending(null);
+  useEffect(() => {
+    const provider = getPhantomSolana();
+    if (!provider) return;
+    let gone = false;
+    void provider
+      .connect({ onlyIfTrusted: true })
+      .then((result) => {
+        if (gone) return;
+        const account = result?.publicKey?.toString() ?? provider.publicKey?.toString();
+        if (account) onConnect(account);
+      })
+      .catch(() => {});
+    return () => {
+      gone = true;
+    };
+  }, [onConnect]);
+
+  function choosePhantom() {
+    const provider = getPhantomSolana();
+    if (!provider) {
+      window.open("https://phantom.app/download", "_blank", "noopener,noreferrer");
+      setError("Install Phantom, then reload this page.");
+      return;
     }
+
+    // Phantom only opens its popup if connect() runs in the click, before any await.
+    const pending = provider.connect({ onlyIfTrusted: false });
+    setError("");
+    setPending(true);
+    void pending
+      .then((result) => {
+        const account = result?.publicKey?.toString() ?? provider.publicKey?.toString();
+        if (!account) throw new Error("Phantom did not return a public key.");
+        onConnect(account);
+        setOpen(false);
+      })
+      .catch((caught) => {
+        const code = typeof caught === "object" && caught && "code" in caught ? (caught as { code?: number }).code : undefined;
+        const message = caught instanceof Error ? caught.message : "Could not connect.";
+        if (code === 4001 || /user rejected|user denied|user cancelled/i.test(message)) return;
+        setError(message);
+      })
+      .finally(() => setPending(false));
   }
 
   return (
@@ -108,6 +149,7 @@ function ConnectButton({
         type="button"
         onClick={() => {
           if (wallet) {
+            void getPhantomSolana()?.disconnect?.();
             onDisconnect();
             setOpen(false);
             return;
@@ -121,8 +163,7 @@ function ConnectButton({
       {open ? (
         <div className="absolute right-0 z-50 mt-2 w-52 rounded-[20px] bg-space p-2 shadow-lg">
           <div className="liquid-glass rounded-[16px] p-2">
-            <WalletChoice label="MetaMask" busy={pending === "metamask"} onClick={() => void choose("metamask")} />
-            <WalletChoice label="Phantom" busy={pending === "phantom"} onClick={() => void choose("phantom")} />
+            <WalletChoice label="Phantom" busy={pending} onClick={() => void choosePhantom()} />
             {error ? <p className="px-3 py-2 font-mono text-[11px] uppercase text-[#ffb4b4]">{error}</p> : null}
           </div>
         </div>
@@ -158,7 +199,7 @@ export function SiteNav({ current, hash, onNavigate }: SiteNavProps) {
                 type="button"
                 onClick={() => onNavigate(link.view, link.hash)}
                 className={`whitespace-nowrap font-grotesk text-[13px] uppercase transition hover:text-neon ${
-                  active ? "text-neon" : "text-cream"
+                  link.label === "Launch" || active ? "text-neon" : "text-cream"
                 }`}
               >
                 {link.label}
